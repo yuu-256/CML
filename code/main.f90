@@ -24,8 +24,10 @@ program main
     real :: E_0(nx, ny), E_1(nx, ny), E_2(nx, ny), E_3(nx, ny)
     real :: w_l_0(nx, ny), w_l_2(nx, ny), w_l_3(nx, ny)
     real :: w_v_0(nx, ny), w_v_1(nx, ny), w_v_2(nx, ny), w_v_3(nx, ny)
+    integer :: step, nsteps
 
     nx = 10; ny = 10
+    nsteps = 200
     
     ! Read input
     call read_input(v_0, u_0, E_0, w_l_0, w_v_0, nx, ny)
@@ -307,5 +309,4 @@ contains
         end do 
         
     end subroutine lagrangian_procedure
-
 end program main
