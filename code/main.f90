@@ -33,10 +33,10 @@ program main
     call read_input(v_0, u_0, E_0, w_l_0, w_v_0, nx, ny)
 
     ! Update variables
-    do step = 1, nsteps
-        call update_variables(v_0, v_1, v_2, v_3, u_0, u_2, u_3, E_0, E_1, E_2, E_3, w_l_0, w_l_2, w_l_3, w_v_0, w_v_1, w_v_2, w_v_3, nx, ny)
-        v_0 = v_3; u_0 = u_3; E_0 = E_3; w_l_0 = w_l_3; w_v_0 = w_v_3
-    end do
+    ! do step = 1, nsteps
+    !     call update_variables(v_0, v_1, v_2, v_3, u_0, u_2, u_3, E_0, E_1, E_2, E_3, w_l_0, w_l_2, w_l_3, w_v_0, w_v_1, w_v_2, w_v_3, nx, ny)
+    !     v_0 = v_3; u_0 = u_3; E_0 = E_3; w_l_0 = w_l_3; w_v_0 = w_v_3
+    ! end do
 
     ! Write output
     call write_output(v_0, u_0, E_0, w_l_0, w_v_0, nx, ny)
@@ -230,11 +230,14 @@ contains
         use constant, only: dt, V
         implicit none
         integer, intent(in) :: nx, ny
-        real, intent(in) :: u(nx, ny), v(nx, ny), E(nx, ny), w_l(nx, ny), w_v(nx, ny)
-        real, intent(out) :: u_new(nx, ny), v_new(nx, ny), E_new(nx, ny), w_l_new(nx, ny), w_v_new(nx, ny)
-        integer :: i, j, ni, nj
-        real :: x, y, dx, dy
-        real :: w11, w12, w21, w22
+        real, intent(in)    :: u(nx, ny), v(nx, ny), E(nx, ny), w_l(nx, ny), w_v(nx, ny)
+        real, intent(out)   :: u_new(nx, ny), v_new(nx, ny), E_new(nx, ny), w_l_new(nx, ny), w_v_new(nx, ny)
+        integer             :: i, j, ni, nj
+        real                :: x, y, dx, dy
+        real                :: y_l, dy_l
+        integer             :: nj_l
+        real                :: w11, w12, w21, w22
+        real                :: w11_l, w12_l, w21_l, w22_l
 
         ! initialize field variables
         do i = 1, nx
@@ -255,9 +258,9 @@ contains
                 y = j + v(i, j) * dt
                 y_l = j + (w_l(i, j) - V) * dt
                 ! nearest grid point
-                ni = floor(x)
-                nj = floor(y)
-                nj_l = floor(y_l)
+                ni = int(floor(x))
+                nj = int(floor(y))
+                nj_l = int(floor(y_l))
                 
                 ! boundary condition
                 if (ni < 1 .or. ni >= nx .or. nj < 1 .or. nj >= ny .or. nj_l < 1 .or. nj_l >= ny) then
