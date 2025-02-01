@@ -13,7 +13,7 @@ module constant
     real, parameter :: q_s = 0.1
     real, parameter :: const = 0.0
     real, parameter :: dt = 1     ! time step
-    real, parameter :: E0 = 5.0   ! initial internal energy
+    real, parameter :: E0 = 4.0   ! initial internal energy
 
 end module constant
 
@@ -26,36 +26,138 @@ program main
     real, allocatable :: w_l_0(:,:), w_l_2(:,:), w_l_3(:,:)
     real, allocatable :: w_v_0(:,:), w_v_1(:,:), w_v_2(:,:), w_v_3(:,:)
     integer :: step, nsteps
+    integer :: unit
+    allocate(v_0(nx, ny), v_1(nx, ny), v_2(nx, ny), v_3(nx, ny))
+    allocate(u_0(nx, ny), u_2(nx, ny), u_3(nx, ny))
+    allocate(E_0(nx, ny), E_1(nx, ny), E_2(nx, ny), E_3(nx, ny))
+    allocate(w_l_0(nx, ny), w_l_2(nx, ny), w_l_3(nx, ny))
+    allocate(w_v_0(nx, ny), w_v_1(nx, ny), w_v_2(nx, ny), w_v_3(nx, ny))
 
     nx = 80; ny = 40
-    nsteps = 200
+    nsteps = 5000
     
     ! Read input
-    call read_input()
-    ! call read_input(v_0, u_0, E_0, w_l_0, w_v_0, nx, ny)
+    write(*, *) 'nx = ', nx, ' ny = ', ny
+    write(*, *) 'nsteps = ', nsteps
+    write(*, *) 'Reading initial configuration'
+    call read_input(v_0, u_0, E_0, w_l_0, w_v_0, nx, ny)
+    write(*, *) 'Reading initial configuration done'
 
     ! Update variables
-    ! do step = 1, nsteps
-    !     call update_variables(v_0, v_1, v_2, v_3, u_0, u_2, u_3, E_0, E_1, E_2, E_3, w_l_0, w_l_2, w_l_3, w_v_0, w_v_1, w_v_2, w_v_3, nx, ny)
-    !     v_0 = v_3; u_0 = u_3; E_0 = E_3; w_l_0 = w_l_3; w_v_0 = w_v_3
-    ! end do
+    write(*, *) 'Simulation starts'
+    do step = 1, nsteps
+        call update_variables(v_0, v_1, v_2, v_3, u_0, u_2, u_3, E_0, E_1, E_2, E_3, w_l_0, w_l_2, w_l_3, w_v_0, w_v_1, w_v_2, w_v_3, nx, ny)
+        v_0 = v_3; u_0 = u_3; E_0 = E_3; w_l_0 = w_l_3; w_v_0 = w_v_3
+    end do
+    write(*, *) 'Simulation ends'
 
     ! Write output
-    call write_output()
-    ! call write_output(v_0, u_0, E_0, w_l_0, w_v_0, nx, ny)
+    call write_output(v_0, u_0, E_0, w_l_0, w_v_0, nx, ny, nsteps)
     
 contains
-    !!! Process boundary conditions !!! 
     !!! Read input
-    subroutine read_input()
+    subroutine read_input(v_0, u_0, E_0, w_l_0, w_v_0, nx, ny)
         implicit none
+        integer, intent(in) :: nx, ny
+        real, intent(out) :: v_0(nx, ny), u_0(nx, ny), E_0(nx, ny), w_l_0(nx, ny), w_v_0(nx, ny)
+        integer :: i, j
+        integer :: unit
+        character(len=10) :: fnm
+        character(len=1000) :: line
+        integer :: ios
+        real :: msg(nx)
+        
+        unit = 10
+        fnm = 'config.txt'
+        open(unit, file=fnm, status='old', action='read')
+        
+        ! Ignore the first 2 lines
+        do i = 1, 2
+            read(unit, *)
+        end do
+        
+        ! Read internal energy
+        do i = 1, 2
+            read(unit, *)
+        end do
+        do j = 1, ny
+            read(unit, *) (E_0(i, j), i = 1, nx)
+        end do
+        
+        ! Read horizontal velocity(u)
+        do i = 1, 2
+            read(unit, *)
+        end do
+        do j = 1, ny
+            read(unit, *) (u_0(i, j), i = 1, nx)
+        end do
+
+        ! Read vertical velocity(v)
+        do i = 1, 2
+            read(unit, *)
+        end do
+        do j = 1, ny
+            read(unit, *) (v_0(i, j), i = 1, nx)
+        end do
+
+        ! Read liquid water
+        do i = 1, 2
+            read(unit, *)
+        end do
+        do j = 1, ny
+            read(unit, *) (w_l_0(i, j), i = 1, nx)
+        end do
+
+        ! Read water vapor
+        do i = 1, 2
+            read(unit, *)
+        end do
+        do j = 1, ny
+            read(unit, *) (w_v_0(i, j), i = 1, nx)
+        end do
+
+        close(unit)
         print *, 'Read input'
     end subroutine read_input
 
     !!! Write output
-    subroutine write_output()
+    subroutine write_output(v_0, u_0, E_0, w_l_0, w_v_0, nx, ny, nsteps)
         implicit none
-        print *, 'Write output'
+        integer, intent(in) :: nx, ny
+        integer, intent(in) :: nsteps
+        real, intent(in) :: v_0(nx, ny), u_0(nx, ny), E_0(nx, ny), w_l_0(nx, ny), w_v_0(nx, ny)
+        character(len=100) :: fnm 
+        integer :: unit
+        integer :: i, j
+       
+        unit = 18
+        write(fnm, '(A, A, I0, A, I0, A, I0, A)') 'output/sim','nx', nx, 'ny', ny, 'nsteps', nsteps, '.txt'
+        write(*, *) 'Writing output to ', fnm
+        open(unit, file=fnm, status='unknown')
+        write(unit, *) 'nx = ', nx, ' ny = ', ny
+        write(unit, *) 'nsteps = ', nsteps
+        write(unit, *) 'Writing output'
+        write(unit, *) 'Horizontal velocity(u)'
+        do j = 1, ny
+            write(unit, *) (u_0(i, j), i = 1, nx)
+        end do
+        write(unit, *) 'Vertical velocity(v)'
+        do j = 1, ny
+            write(unit, *) (v_0(i, j), i = 1, nx)
+        end do
+        write(unit, *) 'Internal energy'
+        do j = 1, ny
+            write(unit, *) (E_0(i, j), i = 1, nx)
+        end do
+        write(unit, *) 'Liquid water'
+        do j = 1, ny
+            write(unit, *) (w_l_0(i, j), i = 1, nx)
+        end do
+        write(unit, *) 'Water vapor'
+        do j = 1, ny
+            write(unit, *) (w_v_0(i, j), i = 1, nx)
+        end do
+        close(unit)
     end subroutine write_output
 
     !!! Update variables
@@ -263,6 +365,7 @@ contains
         real, intent(in)    :: u(nx, ny), v(nx, ny), E(nx, ny), w_l(nx, ny), w_v(nx, ny)
         real, intent(out)   :: u_new(nx, ny), v_new(nx, ny), E_new(nx, ny), w_l_new(nx, ny), w_v_new(nx, ny)
         integer             :: i, j, ni, nj
+        integer             :: nim, nip, njm, njp
         real                :: x, y, dx, dy
         real                :: y_l, dy_l
         integer             :: nj_l
@@ -328,30 +431,35 @@ contains
                 
                 ! update field variables
                 ! velocity
+                nim = merge(nx, ni-1, ni == 1)   ! periodic boundary condition for i
+                nip = merge(1, ni+1, ni == nx)   ! periodic boundary condition for i
+                njm = merge(1, nj-1, nj == 1)    ! reflection boundary condition for j
+                njp = merge(ny, nj+1, nj == ny)  ! reflection boundary condition for j
+
                 u_new(ni, nj)        = u_new(ni, nj)     + w11 * u(i, j)
-                u_new(ni+1, nj)      = u_new(ni+1, nj)   + w21 * u(i, j)
-                u_new(ni, nj+1)      = u_new(ni, nj+1)   + w12 * u(i, j)
-                u_new(ni+1, nj+1)    = u_new(ni+1, nj+1) + w22 * u(i, j)
+                u_new(nip, nj)      = u_new(nip, nj)   + w21 * u(i, j)
+                u_new(ni, njp)      = u_new(ni, njp)   + w12 * u(i, j)
+                u_new(nip, njp)    = u_new(nip, njp) + w22 * u(i, j)
                 v_new(ni, nj)        = v_new(ni, nj)     + w11 * v(i, j)
-                v_new(ni+1, nj)      = v_new(ni+1, nj)   + w21 * v(i, j)
-                v_new(ni, nj+1)      = v_new(ni, nj+1)   + w12 * v(i, j)
-                v_new(ni+1, nj+1)    = v_new(ni+1, nj+1) + w22 * v(i, j)
+                v_new(nip, nj)      = v_new(nip, nj)   + w21 * v(i, j)
+                v_new(ni, njp)      = v_new(ni, njp)   + w12 * v(i, j)
+                v_new(nip, njp)    = v_new(nip, njp) + w22 * v(i, j)
                 ! internal energy
                 E_new(ni, nj)        = E_new(ni, nj)     + w11 * E(i, j)
-                E_new(ni+1, nj)      = E_new(ni+1, nj)   + w21 * E(i, j)
-                E_new(ni, nj+1)      = E_new(ni, nj+1)   + w12 * E(i, j)
-                E_new(ni+1, nj+1)    = E_new(ni+1, nj+1) + w22 * E(i, j)
+                E_new(nip, nj)      = E_new(nip, nj)   + w21 * E(i, j)
+                E_new(ni, njp)      = E_new(ni, njp)   + w12 * E(i, j)
+                E_new(nip, njp)    = E_new(nip, njp) + w22 * E(i, j)
 
                 ! liquid water
                 w_l_new(ni, nj)      = w_l_new(ni, nj)       + w11_l * w_l(i, j)
-                w_l_new(ni+1, nj)    = w_l_new(ni+1, nj)     + w21_l * w_l(i, j)
+                w_l_new(nip, nj)    = w_l_new(nip, nj)     + w21_l * w_l(i, j)
                 w_l_new(ni, nj_l)    = w_l_new(ni, nj_l)     + w12_l * w_l(i, j)
-                w_l_new(ni+1, nj_l)  = w_l_new(ni+1, nj_l)   + w22_l * w_l(i, j)
+                w_l_new(nip, nj_l)  = w_l_new(nip, nj_l)   + w22_l * w_l(i, j)
                 ! water vapor
                 w_v_new(ni, nj)      = w_v_new(ni, nj)       + w11 * w_v(i, j)
-                w_v_new(ni+1, nj)    = w_v_new(ni+1, nj)     + w21 * w_v(i, j)
-                w_v_new(ni, nj+1)    = w_v_new(ni, nj+1)     + w12 * w_v(i, j)
-                w_v_new(ni+1, nj+1)  = w_v_new(ni+1, nj+1)   + w22 * w_v(i, j)
+                w_v_new(nip, nj)    = w_v_new(nip, nj)     + w21 * w_v(i, j)
+                w_v_new(ni, njp)    = w_v_new(ni, njp)     + w12 * w_v(i, j)
+                w_v_new(nip, njp)  = w_v_new(nip, njp)   + w22 * w_v(i, j)
             end do
         end do 
 
