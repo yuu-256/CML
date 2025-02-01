@@ -27,21 +27,19 @@ program main
     real, allocatable :: w_v_0(:,:), w_v_1(:,:), w_v_2(:,:), w_v_3(:,:)
     integer :: step, nsteps
     integer :: unit
+
+    nx = 80; ny = 40
+    nsteps = 5000
     allocate(v_0(nx, ny), v_1(nx, ny), v_2(nx, ny), v_3(nx, ny))
     allocate(u_0(nx, ny), u_2(nx, ny), u_3(nx, ny))
     allocate(E_0(nx, ny), E_1(nx, ny), E_2(nx, ny), E_3(nx, ny))
     allocate(w_l_0(nx, ny), w_l_2(nx, ny), w_l_3(nx, ny))
     allocate(w_v_0(nx, ny), w_v_1(nx, ny), w_v_2(nx, ny), w_v_3(nx, ny))
 
-    nx = 80; ny = 40
-    nsteps = 5000
-    
     ! Read input
     write(*, *) 'nx = ', nx, ' ny = ', ny
     write(*, *) 'nsteps = ', nsteps
-    write(*, *) 'Reading initial configuration'
     call read_input(v_0, u_0, E_0, w_l_0, w_v_0, nx, ny)
-    write(*, *) 'Reading initial configuration done'
 
     ! Simulation
     write(*, *) 'Simulation starts'
@@ -115,7 +113,6 @@ contains
         end do
 
         close(unit)
-        print *, 'Read input'
     end subroutine read_input
 
     !!! Write output
@@ -168,17 +165,10 @@ contains
         real, intent(inout) :: w_l_0(nx, ny), w_l_2(nx, ny), w_l_3(nx, ny)
         real, intent(inout) :: w_v_0(nx, ny), w_v_1(nx, ny), w_v_2(nx, ny), w_v_3(nx, ny)
         
-        ! Bug found****************************************************
         call buoyancy_dragging(v_0, v_1, E_0, w_l_0, nx, ny)
         call viscosity_pressure(u_0, v_1, u_2, v_2, nx, ny)
-        write(*, *) 'u_2b = ', u_2(24,39), ' v_2b = ', v_2(24,39)
-        write(*, *) 'u_2b = ', u_2(24,40), ' v_2b = ', v_2(24,40)
         call diffusion(E_0, E_1, w_v_0, w_v_1, v_0, nx, ny)
-        write(*, *) 'u_2m = ', u_2(24,39), ' v_2m = ', v_2(24,39)
-        write(*, *) 'u_2m = ', u_2(24,40), ' v_2m = ', v_2(24,40)
         call phase_transition(w_v_1, w_v_2, w_l_0, w_l_2, E_1, E_2, nx, ny)
-        write(*, *) 'u_2a = ', u_2(24,39), ' v_2a = ', v_2(24,39)
-        write(*, *) 'u_2a = ', u_2(24,40), ' v_2a = ', v_2(24,40)
         call lagrangian_procedure(u_2, v_2, u_3, v_3, E_2, E_3, w_l_2, w_l_3, w_v_2, w_v_3, nx, ny)
 
     end subroutine update_variables
@@ -294,12 +284,6 @@ contains
             end do
         end do
         
-        ! write(*, *) 'lap_u = ', lap_u(24,39), ' lap_v = ', lap_v(24,39)
-        ! write(*, *) 'lap_u = ', lap_u(24,40), ' lap_v = ', lap_v(24,40)
-        ! write(*, *) 'grad_div_u = ', grad_div_u(24,39), ' grad_div_v = ', grad_div_v(24,39)
-        ! write(*, *) 'grad_div_u = ', grad_div_u(24,40), ' grad_div_v = ', grad_div_v(24,40)
-        ! write(*, *) 'u = ', u(24,39), ' v = ', v(24,39)
-        ! write(*, *) 'u_new = ', u_new(24,40), ' v_new = ', v_new(24,40)
         ! boundary condition
         v_new(:, 1) = v_new(:, 2)  ! slip boundary condition for bottom
         v_new(:, ny) = v_new(:, ny-1)  ! slip boundary condition for top
@@ -401,6 +385,10 @@ contains
                 x = i + u(i, j) * dt
                 y = j + v(i, j) * dt
                 y_l = j + (w_l(i, j) - V_d) * dt
+                x = modulo(x, real(nx))
+                y = modulo(y, real(ny))
+                y_l = modulo(y_l, real(ny))
+
                 ! nearest grid point
                 ni = int(floor(x))
                 nj = int(floor(y))
@@ -409,10 +397,8 @@ contains
                 ! boundary condition
                 ! periodic boundary condition for loa and roa(i)
                 ! reflection boundary condition for toa and boa(j)
-                if (ni < 1) then
-                    ni = nx + ni
-                else if (ni > nx) then
-                    ni = ni - nx
+                if (ni < 1 .or. ni > nx) then
+                    ni = modulo(ni - 1, nx) + 1
                 end if
                 if (nj < 1) then
                     nj = 1
@@ -446,10 +432,6 @@ contains
                 nip = merge(1, ni+1, ni == nx)   ! periodic boundary condition for i
                 njm = merge(1, nj-1, nj == 1)    ! reflection boundary condition for j
                 njp = merge(ny, nj+1, nj == ny)  ! reflection boundary condition for j
-                ! write(*, *) 'i = ', i, ' j = ', j
-                ! write(*, *) 'u = ', u(i, j), ' v = ', v(i, j)
-                ! write(*, *) 'x = ', x, ' y = ', y
-                ! write(*, *) 'ni = ', ni, ' nj = ', nj
 
                 u_new(ni, nj)        = u_new(ni, nj)     + w11 * u(i, j)
                 u_new(nip, nj)      = u_new(nip, nj)   + w21 * u(i, j)
@@ -489,5 +471,4 @@ contains
         E_new(:, ny) = E_new(:, ny-1)
         
     end subroutine lagrangian_procedure
-
 end program main

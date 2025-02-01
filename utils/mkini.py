@@ -24,7 +24,7 @@ def main():
     v_sum = 0.5*nx*ny
     u_matrix = generate_matrix(nx, ny, u_sum)
     v_matrix = generate_matrix(nx, ny, u_sum)
-    # マイナスの値を持たせる
+    
     u_matrix = u_matrix - 0.5 
     v_matrix = v_matrix - 0.5
 
