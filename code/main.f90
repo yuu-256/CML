@@ -12,7 +12,7 @@ module constant
     real, parameter :: A = 0.1
     real, parameter :: q_s = 0.1
     real, parameter :: const = 0.0
-    real, parameter :: dt = 1     ! time step
+    real, parameter :: dt = 0.01     ! time step
     real, parameter :: E0 = 4.0   ! initial internal energy
 
 end module constant
@@ -43,10 +43,11 @@ program main
     call read_input(v_0, u_0, E_0, w_l_0, w_v_0, nx, ny)
     write(*, *) 'Reading initial configuration done'
 
-    ! Update variables
+    ! Simulation
     write(*, *) 'Simulation starts'
     do step = 1, nsteps
         call update_variables(v_0, v_1, v_2, v_3, u_0, u_2, u_3, E_0, E_1, E_2, E_3, w_l_0, w_l_2, w_l_3, w_v_0, w_v_1, w_v_2, w_v_3, nx, ny)
+        ! update variables
         v_0 = v_3; u_0 = u_3; E_0 = E_3; w_l_0 = w_l_3; w_v_0 = w_v_3
     end do
     write(*, *) 'Simulation ends'
@@ -62,13 +63,10 @@ contains
         real, intent(out) :: v_0(nx, ny), u_0(nx, ny), E_0(nx, ny), w_l_0(nx, ny), w_v_0(nx, ny)
         integer :: i, j
         integer :: unit
-        character(len=10) :: fnm
-        character(len=1000) :: line
-        integer :: ios
-        real :: msg(nx)
+        character(len=100) :: fnm
         
         unit = 10
-        fnm = 'config.txt'
+        fnm = 'config/config_80_40_0.009.txt'
         open(unit, file=fnm, status='old', action='read')
         
         ! Ignore the first 2 lines
@@ -169,11 +167,18 @@ contains
         real, intent(inout) :: E_0(nx, ny), E_1(nx, ny), E_2(nx, ny), E_3(nx, ny)
         real, intent(inout) :: w_l_0(nx, ny), w_l_2(nx, ny), w_l_3(nx, ny)
         real, intent(inout) :: w_v_0(nx, ny), w_v_1(nx, ny), w_v_2(nx, ny), w_v_3(nx, ny)
-
+        
+        ! Bug found****************************************************
         call buoyancy_dragging(v_0, v_1, E_0, w_l_0, nx, ny)
         call viscosity_pressure(u_0, v_1, u_2, v_2, nx, ny)
+        write(*, *) 'u_2b = ', u_2(24,39), ' v_2b = ', v_2(24,39)
+        write(*, *) 'u_2b = ', u_2(24,40), ' v_2b = ', v_2(24,40)
         call diffusion(E_0, E_1, w_v_0, w_v_1, v_0, nx, ny)
+        write(*, *) 'u_2m = ', u_2(24,39), ' v_2m = ', v_2(24,39)
+        write(*, *) 'u_2m = ', u_2(24,40), ' v_2m = ', v_2(24,40)
         call phase_transition(w_v_1, w_v_2, w_l_0, w_l_2, E_1, E_2, nx, ny)
+        write(*, *) 'u_2a = ', u_2(24,39), ' v_2a = ', v_2(24,39)
+        write(*, *) 'u_2a = ', u_2(24,40), ' v_2a = ', v_2(24,40)
         call lagrangian_procedure(u_2, v_2, u_3, v_3, E_2, E_3, w_l_2, w_l_3, w_v_2, w_v_3, nx, ny)
 
     end subroutine update_variables
@@ -288,11 +293,17 @@ contains
                 v_new(i, j) = v(i, j) + nu * lap_v(i, j) + eta * grad_div_v(i, j)
             end do
         end do
-
+        
+        ! write(*, *) 'lap_u = ', lap_u(24,39), ' lap_v = ', lap_v(24,39)
+        ! write(*, *) 'lap_u = ', lap_u(24,40), ' lap_v = ', lap_v(24,40)
+        ! write(*, *) 'grad_div_u = ', grad_div_u(24,39), ' grad_div_v = ', grad_div_v(24,39)
+        ! write(*, *) 'grad_div_u = ', grad_div_u(24,40), ' grad_div_v = ', grad_div_v(24,40)
+        ! write(*, *) 'u = ', u(24,39), ' v = ', v(24,39)
+        ! write(*, *) 'u_new = ', u_new(24,40), ' v_new = ', v_new(24,40)
         ! boundary condition
         v_new(:, 1) = v_new(:, 2)  ! slip boundary condition for bottom
         v_new(:, ny) = v_new(:, ny-1)  ! slip boundary condition for top
-
+        
     end subroutine viscosity_pressure 
     
     !!! Represntation of Thermal and vapor diffusion
@@ -435,6 +446,10 @@ contains
                 nip = merge(1, ni+1, ni == nx)   ! periodic boundary condition for i
                 njm = merge(1, nj-1, nj == 1)    ! reflection boundary condition for j
                 njp = merge(ny, nj+1, nj == ny)  ! reflection boundary condition for j
+                ! write(*, *) 'i = ', i, ' j = ', j
+                ! write(*, *) 'u = ', u(i, j), ' v = ', v(i, j)
+                ! write(*, *) 'x = ', x, ' y = ', y
+                ! write(*, *) 'ni = ', ni, ' nj = ', nj
 
                 u_new(ni, nj)        = u_new(ni, nj)     + w11 * u(i, j)
                 u_new(nip, nj)      = u_new(nip, nj)   + w21 * u(i, j)
