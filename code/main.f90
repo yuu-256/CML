@@ -10,7 +10,7 @@ module constant
     real, parameter :: alpha = 0.2  ! phase transition coefficient
     real, parameter :: Q = 0.2
     real, parameter :: A = 0.1
-    real, parameter :: q = 0.1
+    real, parameter :: q_s = 0.1
     real, parameter :: const = 0.0
     real, parameter :: dt = 1     ! time step
 
@@ -19,18 +19,19 @@ end module constant
 program main
     implicit none
     integer :: nx, ny
-    real :: v_0(nx, ny), v_1(nx, ny), v_2(nx, ny), v_3(nx, ny)
-    real :: u_0(nx, ny), u_2(nx, ny), u_3(nx, ny)
-    real :: E_0(nx, ny), E_1(nx, ny), E_2(nx, ny), E_3(nx, ny)
-    real :: w_l_0(nx, ny), w_l_2(nx, ny), w_l_3(nx, ny)
-    real :: w_v_0(nx, ny), w_v_1(nx, ny), w_v_2(nx, ny), w_v_3(nx, ny)
+    real, allocatable :: v_0(:,:), v_1(:,:), v_2(:,:), v_3(:,:)
+    real, allocatable :: u_0(:,:), u_2(:,:), u_3(:,:)
+    real, allocatable :: E_0(:,:), E_1(:,:), E_2(:,:), E_3(:,:)
+    real, allocatable :: w_l_0(:,:), w_l_2(:,:), w_l_3(:,:)
+    real, allocatable :: w_v_0(:,:), w_v_1(:,:), w_v_2(:,:), w_v_3(:,:)
     integer :: step, nsteps
 
     nx = 10; ny = 10
     nsteps = 200
     
     ! Read input
-    call read_input(v_0, u_0, E_0, w_l_0, w_v_0, nx, ny)
+    call read_input()
+    ! call read_input(v_0, u_0, E_0, w_l_0, w_v_0, nx, ny)
 
     ! Update variables
     ! do step = 1, nsteps
@@ -39,7 +40,8 @@ program main
     ! end do
 
     ! Write output
-    call write_output(v_0, u_0, E_0, w_l_0, w_v_0, nx, ny)
+    call write_output()
+    ! call write_output(v_0, u_0, E_0, w_l_0, w_v_0, nx, ny)
     
 contains
     !!! Process boundary conditions !!! 
@@ -201,7 +203,7 @@ contains
     
     !!! Representation of phase transition
     subroutine phase_transition(w_v, w_v_new, w_l, w_l_new, E, E_new, nx, ny)
-        use constant, only: alpha, Q, A, q, const, dt
+        use constant, only: alpha, Q, A, q_s, const, dt
         implicit none
         integer, intent(in) :: nx, ny
         real, intent(in) :: E(nx, ny), w_l(nx, ny), w_v(nx, ny)
@@ -212,8 +214,8 @@ contains
         do i = 1, nx
             do j = 1, ny
                 W = w_l(i, j) + w_v(i, j) 
-                if (A * exp(q / (E(i, j) + const)) > W) then
-                    w_eq(i, j) = A * exp(q / (E(i, j) + const))
+                if (A * exp(q_s / (E(i, j) + const)) > W) then
+                    w_eq(i, j) = A * exp(q_s / (E(i, j) + const))
                 else
                     w_eq(i, j) = W
                 end if
@@ -284,32 +286,33 @@ contains
                 
                 ! update field variables
                 ! velocity
-                u_new(ni, nj) += w11 * u(i, j)
-                u_new(ni+1, nj) += w21 * u(i, j)
-                u_new(ni, nj+1) += w12 * u(i, j)
-                u_new(ni+1, nj+1) += w22 * u(i, j) 
-                v_new(ni, nj) += w11 * v(i, j)
-                v_new(ni+1, nj) += w21 * v(i, j)
-                v_new(ni, nj+1) += w12 * v(i, j)
-                v_new(ni+1, nj+1) += w22 * v(i, j)
+                u_new(ni, nj)        += w11 * u(i, j)
+                u_new(ni+1, nj)      += w21 * u(i, j)
+                u_new(ni, nj+1)      += w12 * u(i, j)
+                u_new(ni+1, nj+1)    += w22 * u(i, j) 
+                v_new(ni, nj)        += w11 * v(i, j)
+                v_new(ni+1, nj)      += w21 * v(i, j)
+                v_new(ni, nj+1)      += w12 * v(i, j)
+                v_new(ni+1, nj+1)    += w22 * v(i, j)
                 ! internal energy
-                E_new(ni, nj) += w11 * E(i, j)
-                E_new(ni+1, nj) += w21 * E(i, j)
-                E_new(ni, nj+1) += w12 * E(i, j)
-                E_new(ni+1, nj+1) += w22 * E(i, j)
+                E_new(ni, nj)        += w11 * E(i, j)
+                E_new(ni+1, nj)      += w21 * E(i, j)
+                E_new(ni, nj+1)      += w12 * E(i, j)
+                E_new(ni+1, nj+1)    += w22 * E(i, j)
 
                 ! liquid water
-                w_l_new(ni, nj_l) += w11_l * w_l(i, j)
-                w_l_new(ni+1, nj_l) += w21_l * w_l(i, j)
-                w_l_new(ni, nj_l+1) += w12_l * w_l(i, j)
+                w_l_new(ni, nj_l)    += w11_l * w_l(i, j)
+                w_l_new(ni+1, nj_l)  += w21_l * w_l(i, j)
+                w_l_new(ni, nj_l+1)  += w12_l * w_l(i, j)
                 w_l_new(ni+1, nj_l+1) += w22_l * w_l(i, j)
                 ! water vapor
-                w_v_new(ni, nj) += w11 * w_v(i, j)
-                w_v_new(ni+1, nj) += w21 * w_v(i, j)
-                w_v_new(ni, nj+1) += w12 * w_v(i, j)
-                w_v_new(ni+1, nj+1) += w22 * w_v(i, j)
+                w_v_new(ni, nj)      += w11 * w_v(i, j)
+                w_v_new(ni+1, nj)    += w21 * w_v(i, j)
+                w_v_new(ni, nj+1)    += w12 * w_v(i, j)
+                w_v_new(ni+1, nj+1)  += w22 * w_v(i, j)
             end do
         end do 
         
     end subroutine lagrangian_procedure
+
 end program main
