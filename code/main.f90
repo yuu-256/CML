@@ -1,8 +1,8 @@
 module constant
     implicit none
-    real, parameter :: c = 0.2      ! 
+    real, parameter :: c = 0.2      !  
     real, parameter :: r = 0.2      ! dragging coefficient
-    real, parameter :: V = 0.2      ! velocity of liquid droplet
+    real, parameter :: V_d = 0.2      ! velocity of liquid droplet
     real, parameter :: nu = 0.2     ! 
     real, parameter :: eta = 0.2    !
     real, parameter :: lambda = 0.2
@@ -13,6 +13,7 @@ module constant
     real, parameter :: q_s = 0.1
     real, parameter :: const = 0.0
     real, parameter :: dt = 1     ! time step
+    real, parameter :: E0 = 5.0   ! initial internal energy
 
 end module constant
 
@@ -26,7 +27,7 @@ program main
     real, allocatable :: w_v_0(:,:), w_v_1(:,:), w_v_2(:,:), w_v_3(:,:)
     integer :: step, nsteps
 
-    nx = 10; ny = 10
+    nx = 80; ny = 40
     nsteps = 200
     
     ! Read input
@@ -74,23 +75,24 @@ contains
         call lagrangian_procedure(u_2, v_2, u_3, v_3, E_2, E_3, w_l_2, w_l_3, w_v_2, w_v_3, nx, ny)
 
     end subroutine update_variables
-    
+
     !!! Laplacian
     subroutine laplacian(A, lap_A, nx, ny)
         implicit none
         integer, intent(in) :: nx, ny
         real, intent(in) :: A(nx, ny)
         real, intent(out) :: lap_A(nx, ny)
-        integer :: i, j
+        integer :: i, j, im, ip, jm, jp
 
-        do i = 2, nx-1
-            do j = 2, ny-1
-                lap_A(i, j) = 0.25 * (A(i-1, j) + A(i+1, j) + A(i, j-1) + A(i, j+1) - 4.0 * A(i, j))
+        do i = 1, nx
+            do j = 1, ny
+                im = merge(nx, i-1, i == 1)   ! periodic boundary condition for i
+                ip = merge(1, i+1, i == nx)   ! periodic boundary condition for i 
+                jm = merge(1, j-1, j == 1)    ! reflection boundary condition for j
+                jp = merge(ny, j+1, j == ny)  ! reflection boundary condition for j
+                lap_A(i, j) = 0.25 * (A(im, j) + A(ip, j) + A(i, jm) + A(i, jp) - 4.0 * A(i, j))
             end do
         end do
-
-        lap_A(1, :) = 0.0; lap_A(nx, :) = 0.0
-        lap_A(:, 1) = 0.0; lap_A(:, ny) = 0.0
 
     end subroutine laplacian
 
@@ -100,16 +102,17 @@ contains
         integer, intent(in) :: nx, ny
         real, intent(in) :: u(nx, ny), v(nx, ny)
         real, intent(out) :: div_v(nx, ny)
-        integer :: i, j
-
-        do i = 2, nx-1
-            do j = 2, ny-1
-                div_v(i, j) = 0.5 * ((u(i+1, j) - u(i-1, j)) + (v(i, j+1) - v(i, j-1)))
+        integer :: i, j, im, ip, jm, jp
+        
+        do i = 1, nx
+            do j = 1, ny
+                im = merge(nx, i-1, i == 1)   ! periodic boundary condition for i
+                ip = merge(1, i+1, i == nx)   ! periodic boundary condition for i
+                jm = merge(1, j-1, j == 1)    ! reflection boundary condition for j
+                jp = merge(ny, j+1, j == ny)  ! reflection boundary condition for j
+                div_v(i, j) = 0.5 * ((u(ip, j) - u(im, j)) + (v(i, jp) - v(i, jm)))
             end do
         end do
-
-        div_v(1, :) = 0.0; div_v(nx, :) = 0.0
-        div_v(:, 1) = 0.0; div_v(:, ny) = 0.0
 
     end subroutine divergence
     
@@ -119,37 +122,44 @@ contains
         integer, intent(in) :: nx, ny
         real, intent(in) :: div_v(nx, ny)
         real, intent(out) :: grad_div_u(nx, ny), grad_div_v(nx, ny)
-        integer :: i, j
-
-        do i = 2, nx-1
-            do j = 2, ny-1
-                grad_div_u(i, j) = 0.5 * (div_v(i+1, j) - div_v(i-1, j))
-                grad_div_v(i, j) = 0.5 * (div_v(i, j+1) - div_v(i, j-1))
+        integer :: i, j, im, ip, jm, jp
+        
+        do i = 1, nx
+            do j = 1, ny
+                im = merge(nx, i-1, i == 1)   ! periodic boundary condition for i
+                ip = merge(1, i+1, i == nx)   ! periodic boundary condition for i
+                jm = merge(1, j-1, j == 1)    ! reflection boundary condition for j
+                jp = merge(ny, j+1, j == ny)  ! reflection boundary condition for j
+                grad_div_u(i, j) = 0.5 * (div_v(ip, j) - div_v(im, j))
+                grad_div_v(i, j) = 0.5 * (div_v(i, jp) - div_v(i, jm))
             end do
         end do
-
-        grad_div_u(1, :) = 0.0; grad_div_u(nx, :) = 0.0
-        grad_div_u(:, 1) = 0.0; grad_div_u(:, ny) = 0.0
-        grad_div_v(1, :) = 0.0; grad_div_v(nx, :) = 0.0
-        grad_div_v(:, 1) = 0.0; grad_div_v(:, ny) = 0.0
 
     end subroutine gradient
     
     !!! Representation of Buoyancy and Dragging forces
-    subroutine buoyauncy_dragging(v, v_new, E, w_l, nx, ny)
-        use constant, only: c, r, V
+    subroutine buoyancy_dragging(v, v_new, E, w_l, nx, ny)
+        use constant, only: c, r, V_d
         implicit none
         integer, intent(in) :: nx, ny
         real, intent(in) :: v(nx, ny), E(nx, ny), w_l(nx, ny)
         real, intent(out) :: v_new(nx, ny)
-        integer :: i, j
+        integer :: i, j, im, ip, jm, jp
         
         !update v
         do i = 1, nx
             do j = 1, ny
-                v_new(i, j) = v(i, j) + c * (E(i + 1, j) + E(i - 1, j) - 2 * E(i, j)) / 2 + r * w_l(i, j) * (v(i, j)  - V)
+                im = merge(nx, i-1, i == 1)   ! periodic boundary condition for i
+                ip = merge(1, i+1, i == nx)   ! periodic boundary condition for i
+                jm = merge(1, j-1, j == 1)    ! reflection boundary condition for j
+                jp = merge(ny, j+1, j == ny)  ! reflection boundary condition for j
+                v_new(i, j) = v(i, j) + c * (E(ip, j) + E(im, j) - 2 * E(i, j)) / 2 + r * w_l(i, j) * (v(i, j)  - V_d)
             end do
         end do
+
+        ! boundary condition
+        v_new(:, 1) = v_new(:, 2)  ! slip boundary condition for bottom
+        v_new(:, ny) = v_new(:, ny-1)  ! slip boundary condition for top
 
     end subroutine buoyancy_dragging
     
@@ -177,11 +187,15 @@ contains
             end do
         end do
 
+        ! boundary condition
+        v_new(:, 1) = v_new(:, 2)  ! slip boundary condition for bottom
+        v_new(:, ny) = v_new(:, ny-1)  ! slip boundary condition for top
+
     end subroutine viscosity_pressure 
     
     !!! Represntation of Thermal and vapor diffusion
     subroutine diffusion(E, E_new, w_v, w_v_new, v, nx, ny)
-        use constant, only: lambda, beta
+        use constant, only: lambda, beta, E0
         implicit none
         integer, intent(in) :: nx, ny
         real, intent(in) :: E(nx, ny), v(nx, ny), w_v(nx, ny)
@@ -194,16 +208,22 @@ contains
         
         do i = 1, nx
             do j = 1, ny
-                E_new(i, j) = E(i, j) + lambda * lap_E(i, j) - beta * u(i, j)
+                E_new(i, j) = E(i, j) + lambda * lap_E(i, j) - beta * v(i, j)
                 w_v_new(i, j) = w_v(i, j) + lambda * lap_w_v(i, j)
             end do
         end do
+        
+        ! boundary condition
+        E_new(:, 1) = E0
+        E_new(:, ny) = E_new(:, ny-1) 
+        w_v_new(:, 1) = 0.0
+        w_v_new(:, ny) = 0.0
 
     end subroutine diffusion
     
     !!! Representation of phase transition
     subroutine phase_transition(w_v, w_v_new, w_l, w_l_new, E, E_new, nx, ny)
-        use constant, only: alpha, Q, A, q_s, const, dt
+        use constant, only: alpha, Q, A, q_s, const, dt, E0
         implicit none
         integer, intent(in) :: nx, ny
         real, intent(in) :: E(nx, ny), w_l(nx, ny), w_v(nx, ny)
@@ -225,11 +245,19 @@ contains
             end do
         end do
 
+        ! boundary condition
+        w_v_new(:, 1) = 0.0
+        w_v_new(:, ny) = 0.0
+        w_l_new(:, 1) = 0.0
+        w_l_new(:, ny) = 0.0
+        E_new(:, 1) = E0
+        E_new(:, ny) = E_new(:, ny-1)
+
     end subroutine phase_transition
 
     ! Allocate field variables to neighbors after update position(velocity, internal energy, liquid water, water vapor)
     subroutine lagrangian_procedure(u, v, u_new, v_new, E, E_new, w_l, w_l_new, w_v, w_v_new, nx, ny)
-        use constant, only: dt, V
+        use constant, only: dt, V_d, E0
         implicit none
         integer, intent(in) :: nx, ny
         real, intent(in)    :: u(nx, ny), v(nx, ny), E(nx, ny), w_l(nx, ny), w_v(nx, ny)
@@ -258,17 +286,31 @@ contains
                 ! updated position
                 x = i + u(i, j) * dt
                 y = j + v(i, j) * dt
-                y_l = j + (w_l(i, j) - V) * dt
+                y_l = j + (w_l(i, j) - V_d) * dt
                 ! nearest grid point
                 ni = int(floor(x))
                 nj = int(floor(y))
                 nj_l = int(floor(y_l))
                 
                 ! boundary condition
-                if (ni < 1 .or. ni >= nx .or. nj < 1 .or. nj >= ny .or. nj_l < 1 .or. nj_l >= ny) then
-                    ! do something
+                ! periodic boundary condition for loa and roa(i)
+                ! reflection boundary condition for toa and boa(j)
+                if (ni < 1) then
+                    ni = nx + ni
+                else if (ni > nx) then
+                    ni = ni - nx
                 end if
-                
+                if (nj < 1) then
+                    nj = 1
+                else if (nj > ny) then
+                    nj = ny
+                end if 
+                if (nj_l < 1) then
+                    nj_l = 1
+                else if (nj_l > ny) then
+                    nj_l = ny
+                end if
+
                 ! relative position
                 dx = x - ni
                 dy = y - nj
@@ -286,32 +328,42 @@ contains
                 
                 ! update field variables
                 ! velocity
-                u_new(ni, nj)        += w11 * u(i, j)
-                u_new(ni+1, nj)      += w21 * u(i, j)
-                u_new(ni, nj+1)      += w12 * u(i, j)
-                u_new(ni+1, nj+1)    += w22 * u(i, j) 
-                v_new(ni, nj)        += w11 * v(i, j)
-                v_new(ni+1, nj)      += w21 * v(i, j)
-                v_new(ni, nj+1)      += w12 * v(i, j)
-                v_new(ni+1, nj+1)    += w22 * v(i, j)
+                u_new(ni, nj)        = u_new(ni, nj)     + w11 * u(i, j)
+                u_new(ni+1, nj)      = u_new(ni+1, nj)   + w21 * u(i, j)
+                u_new(ni, nj+1)      = u_new(ni, nj+1)   + w12 * u(i, j)
+                u_new(ni+1, nj+1)    = u_new(ni+1, nj+1) + w22 * u(i, j)
+                v_new(ni, nj)        = v_new(ni, nj)     + w11 * v(i, j)
+                v_new(ni+1, nj)      = v_new(ni+1, nj)   + w21 * v(i, j)
+                v_new(ni, nj+1)      = v_new(ni, nj+1)   + w12 * v(i, j)
+                v_new(ni+1, nj+1)    = v_new(ni+1, nj+1) + w22 * v(i, j)
                 ! internal energy
-                E_new(ni, nj)        += w11 * E(i, j)
-                E_new(ni+1, nj)      += w21 * E(i, j)
-                E_new(ni, nj+1)      += w12 * E(i, j)
-                E_new(ni+1, nj+1)    += w22 * E(i, j)
+                E_new(ni, nj)        = E_new(ni, nj)     + w11 * E(i, j)
+                E_new(ni+1, nj)      = E_new(ni+1, nj)   + w21 * E(i, j)
+                E_new(ni, nj+1)      = E_new(ni, nj+1)   + w12 * E(i, j)
+                E_new(ni+1, nj+1)    = E_new(ni+1, nj+1) + w22 * E(i, j)
 
                 ! liquid water
-                w_l_new(ni, nj_l)    += w11_l * w_l(i, j)
-                w_l_new(ni+1, nj_l)  += w21_l * w_l(i, j)
-                w_l_new(ni, nj_l+1)  += w12_l * w_l(i, j)
-                w_l_new(ni+1, nj_l+1) += w22_l * w_l(i, j)
+                w_l_new(ni, nj)      = w_l_new(ni, nj)       + w11_l * w_l(i, j)
+                w_l_new(ni+1, nj)    = w_l_new(ni+1, nj)     + w21_l * w_l(i, j)
+                w_l_new(ni, nj_l)    = w_l_new(ni, nj_l)     + w12_l * w_l(i, j)
+                w_l_new(ni+1, nj_l)  = w_l_new(ni+1, nj_l)   + w22_l * w_l(i, j)
                 ! water vapor
-                w_v_new(ni, nj)      += w11 * w_v(i, j)
-                w_v_new(ni+1, nj)    += w21 * w_v(i, j)
-                w_v_new(ni, nj+1)    += w12 * w_v(i, j)
-                w_v_new(ni+1, nj+1)  += w22 * w_v(i, j)
+                w_v_new(ni, nj)      = w_v_new(ni, nj)       + w11 * w_v(i, j)
+                w_v_new(ni+1, nj)    = w_v_new(ni+1, nj)     + w21 * w_v(i, j)
+                w_v_new(ni, nj+1)    = w_v_new(ni, nj+1)     + w12 * w_v(i, j)
+                w_v_new(ni+1, nj+1)  = w_v_new(ni+1, nj+1)   + w22 * w_v(i, j)
             end do
         end do 
+
+        ! boundary condition
+        v_new(:, 1) = v_new(:, 2)
+        v_new(:, ny) = v_new(:, ny-1)
+        w_v_new(:, 1) = 0.0
+        w_v_new(:, ny) = 0.0
+        w_l_new(:, 1) = 0.0
+        w_l_new(:, ny) = 0.0
+        E_new(:, 1) = E0
+        E_new(:, ny) = E_new(:, ny-1)
         
     end subroutine lagrangian_procedure
 
