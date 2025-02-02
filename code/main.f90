@@ -165,11 +165,6 @@ contains
         real, intent(inout) :: E_0(nx, ny), E_1(nx, ny), E_2(nx, ny), E_3(nx, ny)
         real, intent(inout) :: w_l_0(nx, ny), w_l_2(nx, ny), w_l_3(nx, ny)
         real, intent(inout) :: w_v_0(nx, ny), w_v_1(nx, ny), w_v_2(nx, ny), w_v_3(nx, ny)
-
-        ! real, intent(in) :: u_0(nx, ny), v_0(nx, ny), E_0(nx, ny), w_l_0(nx, ny), w_v_0(nx, ny)
-        ! real, intent(out) :: u_3(nx, ny), v_3(nx, ny), E_3(nx, ny), w_l_3(nx, ny), w_v_3(nx, ny)
-        ! real :: v_1(nx, ny), E_1(nx, ny), w_l_1(nx, ny), w_v_1(nx, ny)
-        ! real :: u_2(nx, ny), v_2(nx, ny), E_2(nx, ny), w_l_2(nx, ny), w_v_2(nx, ny)
         integer :: i, j
 
         call buoyancy_dragging(v_0, v_1, E_0, w_l_0, nx, ny)
@@ -262,7 +257,7 @@ contains
                 ip = merge(1, i+1, i == nx)   ! periodic boundary condition for i
                 jm = merge(2, j-1, j == 1)    ! reflection boundary condition for j
                 jp = merge(ny-1, j+1, j == ny)  ! reflection boundary condition for j
-                v_new(i, j) = v(i, j) + (c * (E(ip, j) + E(im, j) - 2 * E(i, j)) / 2) - r * w_l(i, j) * (v(i, j) - V_d)
+                v_new(i, j) = v(i, j) - (c * (E(ip, j) + E(im, j) - 2 * E(i, j)) / 2) - r * w_l(i, j) * (v(i, j) - V_d)
             end do
         end do
 
