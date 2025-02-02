@@ -28,10 +28,9 @@ program main
     integer :: step, nsteps
     integer :: unit
     integer :: i, j
-    real :: MAX_VALUE = 1.0E+6
 
     nx = 80; ny = 40
-    nsteps = 1000
+    nsteps = 5000
     allocate(v_0(nx, ny), v_1(nx, ny), v_2(nx, ny), v_3(nx, ny))
     allocate(u_0(nx, ny), u_2(nx, ny), u_3(nx, ny))
     allocate(E_0(nx, ny), E_1(nx, ny), E_2(nx, ny), E_3(nx, ny))
@@ -47,8 +46,7 @@ program main
     write(*, *) 'Simulation starts'
     do step = 1, nsteps
         call cml_sim(v_0, v_1, v_2, v_3, u_0, u_2, u_3, E_0, E_1, E_2, E_3, w_l_0, w_l_2, w_l_3, w_v_0, w_v_1, w_v_2, w_v_3, nx, ny)
-        ! update variables
-        v_0 = v_3; u_0 = u_3; E_0 = E_3; w_l_0 = w_l_3; w_v_0 = w_v_3
+        v_0 = v_3; u_0 = u_3; E_0 = E_3; w_v_0 = w_v_3; w_l_0 = w_l_3
     end do
     write(*, *) 'Simulation ends'
 
@@ -158,7 +156,7 @@ contains
         close(unit)
     end subroutine write_output
 
-    !!! Update variables
+    !!! CML simulation
     subroutine cml_sim(v_0, v_1, v_2, v_3, u_0, u_2, u_3, E_0, E_1, E_2, E_3, w_l_0, w_l_2, w_l_3, w_v_0, w_v_1, w_v_2, w_v_3, nx, ny)
         implicit none
         integer, intent(in) :: nx, ny
@@ -167,8 +165,13 @@ contains
         real, intent(inout) :: E_0(nx, ny), E_1(nx, ny), E_2(nx, ny), E_3(nx, ny)
         real, intent(inout) :: w_l_0(nx, ny), w_l_2(nx, ny), w_l_3(nx, ny)
         real, intent(inout) :: w_v_0(nx, ny), w_v_1(nx, ny), w_v_2(nx, ny), w_v_3(nx, ny)
+
+        ! real, intent(in) :: u_0(nx, ny), v_0(nx, ny), E_0(nx, ny), w_l_0(nx, ny), w_v_0(nx, ny)
+        ! real, intent(out) :: u_3(nx, ny), v_3(nx, ny), E_3(nx, ny), w_l_3(nx, ny), w_v_3(nx, ny)
+        ! real :: v_1(nx, ny), E_1(nx, ny), w_l_1(nx, ny), w_v_1(nx, ny)
+        ! real :: u_2(nx, ny), v_2(nx, ny), E_2(nx, ny), w_l_2(nx, ny), w_v_2(nx, ny)
         integer :: i, j
-        
+
         call buoyancy_dragging(v_0, v_1, E_0, w_l_0, nx, ny)
         call viscosity_pressure(u_0, v_1, u_2, v_2, nx, ny)
         call diffusion(E_0, E_1, w_v_0, w_v_1, v_0, nx, ny)
@@ -193,7 +196,6 @@ contains
                 jm = merge(2, j-1, j == 1)    ! reflection boundary condition for j
                 jp = merge(ny-1, j+1, j == ny)  ! reflection boundary condition for j
                 lap_A(i, j) = 0.25 * (A(im, j) + A(ip, j) + A(i, jm) + A(i, jp) - 4.0 * A(i, j))
-
             end do
         end do
 
@@ -260,7 +262,7 @@ contains
                 ip = merge(1, i+1, i == nx)   ! periodic boundary condition for i
                 jm = merge(2, j-1, j == 1)    ! reflection boundary condition for j
                 jp = merge(ny-1, j+1, j == ny)  ! reflection boundary condition for j
-                v_new(i, j) = v(i, j) + c * (E(ip, j) + E(im, j) - 2 * E(i, j)) / 2 + r * w_l(i, j) * (v(i, j)  - V_d)
+                v_new(i, j) = v(i, j) + (c * (E(ip, j) + E(im, j) - 2 * E(i, j)) / 2) - r * w_l(i, j) * (v(i, j) - V_d)
             end do
         end do
 
@@ -307,9 +309,10 @@ contains
         integer, intent(in) :: nx, ny
         real, intent(in) :: E(nx, ny), v(nx, ny), w_v(nx, ny)
         real, intent(out) :: E_new(nx, ny), w_v_new(nx, ny)
-        real :: lap_E(nx, ny), lap_w_v(nx, ny)
+        real, allocatable :: lap_E(:, :), lap_w_v(:, :)
         integer :: i, j
-        
+
+        allocate(lap_E(nx, ny), lap_w_v(nx, ny))
         call laplacian(E, lap_E, nx, ny)
         call laplacian(w_v, lap_w_v, nx, ny)
         

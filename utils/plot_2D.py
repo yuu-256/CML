@@ -4,7 +4,9 @@ import matplotlib.pyplot as plt
 # Load output file
 fnm = 'output/simnx20ny10nsteps5000.txt'
 fnm = 'output/simnx80ny40nsteps5000.txt'
-fnm = 'output/simnx80ny40nsteps1000.txt'
+# fnm = 'output/simnx80ny40nsteps1000.txt'
+# fnm = 'output/simnx160ny80nsteps5000.txt'
+# fnm = 'output/simnx40ny20nsteps5000.txt'
 # fnm = 'output/simnx80ny40nsteps10000.txt'
 # fnm = 'output/simnx40ny20nsteps5000.txt'
 # fnm = 'output/simnx80ny40nsteps200.txt'
@@ -41,7 +43,8 @@ for i, line in enumerate(lines):
 
 # Get data and transform to 2D array
 plt.imshow(lw, origin='lower', extent=[0, nx, 0, ny], cmap='Greys_r')
-plt.title('Horizontal velocity(u)')
+plt.title('Liquid water mass')
 plt.colorbar()
-plt.clim(0, 0.0001)
+plt.clim(0, 0.001)
+plt.savefig('image/lw.png')
 plt.show()

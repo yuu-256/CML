@@ -11,22 +11,22 @@ def generate_matrix(nx, ny, total_sum):
 
 def main():
 
-    nx, ny = 80, 40
+    nx, ny = 40, 20
     w_sum = 0.009
     w_matrix = generate_matrix(nx, int(ny*2), w_sum)
-    w_l = w_matrix[:, :40]
-    w_v = w_matrix[:, 40:]
+    w_l = w_matrix[:, :ny]
+    w_v = w_matrix[:, ny:]
 
-    E_sum = 0.1*nx*ny
+    E_sum = 0.01*nx*ny
     E_matrix = generate_matrix(nx, ny, E_sum)
     
-    u_sum = 0.02*nx*ny
-    v_sum = 0.02*nx*ny
+    u_sum = 0.2*nx*ny
+    v_sum = 0.2*nx*ny
     u_matrix = generate_matrix(nx, ny, u_sum)
     v_matrix = generate_matrix(nx, ny, u_sum)
     
-    u_matrix = u_matrix - 0.02
-    v_matrix = v_matrix - 0.02
+    u_matrix = u_matrix - 0.2
+    v_matrix = v_matrix - 0.2
 
     fnm = f"config/config_{nx}_{ny}_{w_sum}.txt"
     with open(fnm, "w") as f:
