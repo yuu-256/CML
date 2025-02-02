@@ -17,16 +17,16 @@ def main():
     w_l = w_matrix[:, :40]
     w_v = w_matrix[:, 40:]
 
-    E_sum = 4.0*nx*ny
+    E_sum = 0.1*nx*ny
     E_matrix = generate_matrix(nx, ny, E_sum)
     
-    u_sum = 0.5*nx*ny
-    v_sum = 0.5*nx*ny
+    u_sum = 0.02*nx*ny
+    v_sum = 0.02*nx*ny
     u_matrix = generate_matrix(nx, ny, u_sum)
     v_matrix = generate_matrix(nx, ny, u_sum)
     
-    u_matrix = u_matrix - 0.5 
-    v_matrix = v_matrix - 0.5
+    u_matrix = u_matrix - 0.02
+    v_matrix = v_matrix - 0.02
 
     fnm = f"config/config_{nx}_{ny}_{w_sum}.txt"
     with open(fnm, "w") as f:
