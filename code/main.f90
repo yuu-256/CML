@@ -3,16 +3,16 @@ module constant
     real, parameter :: c = 0.2      !  
     real, parameter :: r = 0.2      ! dragging coefficient
     real, parameter :: V_d = 0.2    ! terminal velocity of liquid droplet
-    real, parameter :: nu = 0.2     ! kinematic viscosity 
+    real, parameter :: nu = 2     ! kinematic viscosity 
     real, parameter :: eta = 0.2    ! dynamic viscosity
     real, parameter :: lambda = 0.2 ! thermal diffusion coefficient
     real, parameter :: beta = 0.2   ! adiabatic expansion coefficient
     real, parameter :: alpha = 0.2  ! phase transition coefficient
     real, parameter :: Q = 0.2      ! the latent heat of vaporization
-    real, parameter :: A = 5.0E-6   ! parameter for phase transition
+    real, parameter :: A = 5.0E-4   ! parameter for phase transition
     real, parameter :: q_s = 2      ! latent heat of vaporization
     real, parameter :: const = 3    ! constant for Clausius-Clapeyron equation
-    real, parameter :: dt = 0.5     ! time step (<1/alpha)
+    real, parameter :: dt = 0.1     ! time step (<1/alpha)
     real, parameter :: E0 = 4.0     ! boundary internal energy
 
 end module constant
@@ -28,19 +28,28 @@ program main
     integer :: step, nsteps
     integer :: unit
     integer :: i, j
+    integer :: ierr
 
     nx = 80; ny = 40
     nsteps = 5000
-    allocate(v_0(nx, ny), v_1(nx, ny), v_2(nx, ny), v_3(nx, ny))
-    allocate(u_0(nx, ny), u_2(nx, ny), u_3(nx, ny))
-    allocate(E_0(nx, ny), E_1(nx, ny), E_2(nx, ny), E_3(nx, ny))
-    allocate(w_l_0(nx, ny), w_l_2(nx, ny), w_l_3(nx, ny))
-    allocate(w_v_0(nx, ny), w_v_1(nx, ny), w_v_2(nx, ny), w_v_3(nx, ny))
+    allocate(v_0(nx, ny), v_1(nx, ny), v_2(nx, ny), v_3(nx, ny), stat=ierr)
+    allocate(u_0(nx, ny), u_2(nx, ny), u_3(nx, ny), stat=ierr)
+    allocate(E_0(nx, ny), E_1(nx, ny), E_2(nx, ny), E_3(nx, ny), stat=ierr)
+    allocate(w_l_0(nx, ny), w_l_2(nx, ny), w_l_3(nx, ny), stat=ierr)
+    allocate(w_v_0(nx, ny), w_v_1(nx, ny), w_v_2(nx, ny), w_v_3(nx, ny), stat=ierr)
+    if (ierr /= 0) then
+        write(*, *) 'Error: allocating memory'
+        stop
+    end if
 
     ! Read input
     write(*, *) 'nx = ', nx, ' ny = ', ny
     write(*, *) 'nsteps = ', nsteps
     call read_input(v_0, u_0, E_0, w_l_0, w_v_0, nx, ny)
+    if (any(isnan(v_0)) .or. any(isnan(u_0)) .or. any(isnan(E_0)) .or. any(isnan(w_l_0)) .or. any(isnan(w_v_0))) then
+        write(*, *) 'Error: NaN detected in initial data'
+        stop
+    end if
 
     ! Simulation
     write(*, *) 'Simulation starts'
@@ -59,14 +68,25 @@ contains
         implicit none
         integer, intent(in) :: nx, ny
         real, intent(out) :: v_0(nx, ny), u_0(nx, ny), E_0(nx, ny), w_l_0(nx, ny), w_v_0(nx, ny)
-        integer :: i, j
+        integer :: i, j, ios
         integer :: unit
         character(len=100) :: fnm
         
         unit = 10
         fnm = 'config/config_80_40_0.009.txt'
-        open(unit, file=fnm, status='old', action='read')
-        
+        open(unit, file=fnm, status='old', action='read', iostat=ios)
+        if (ios /= 0) then
+            write(*, *) 'Error: Unable to open file ', trim(fnm)
+            stop
+        end if
+
+        ! Initialize field variables
+        E_0(:,:) = 0.0
+        u_0(:,:) = 0.0
+        v_0(:,:) = 0.0
+        w_l_0(:,:) = 0.0
+        w_v_0(:,:) = 0.0
+
         ! Ignore the first 2 lines
         do i = 1, 2
             read(unit, *)
@@ -275,14 +295,14 @@ contains
         real, intent(in) :: u(nx, ny), v(nx, ny)
         real, intent(out) :: u_new(nx, ny), v_new(nx, ny)
         real :: lap_u(nx, ny), lap_v(nx, ny)
-        real :: div_u(nx, ny), div_v(nx, ny)
+        real :: div_v(nx, ny)
         real :: grad_div_u(nx, ny), grad_div_v(nx, ny)
         integer :: i, j
 
         call laplacian(u, lap_u, nx, ny)
         call laplacian(v, lap_v, nx, ny)
-        call divergence(u, v, div_u, nx, ny)
-        call gradient(div_u, grad_div_u, grad_div_v, nx, ny)
+        call divergence(u, v, div_v, nx, ny)
+        call gradient(div_v, grad_div_u, grad_div_v, nx, ny)
 
         do i = 1, nx
             do j = 1, ny
@@ -313,16 +333,18 @@ contains
         
         do i = 1, nx
             do j = 1, ny
-                E_new(i, j) = E(i, j) + lambda * lap_E(i, j) - beta * v(i, j)
-                w_v_new(i, j) = w_v(i, j) + lambda * lap_w_v(i, j)
+                E_new(i, j)   = max(0.0, E(i, j) + lambda * lap_E(i, j) - beta * v(i, j))
+                w_v_new(i, j) = max(0.0, w_v(i, j) + lambda * lap_w_v(i, j))
             end do
         end do
         
         ! boundary condition
         E_new(:, 1) = E0
         E_new(:, ny) = E_new(:, ny-1)
-        w_v_new(:, 1) = 0.0
-        w_v_new(:, ny) = 0.0
+        w_v_new(:, 1) = w_v_new(:, 2)
+        w_v_new(:, ny) = w_v_new(:, ny-1)
+        ! w_v_new(:, 1) = 0.0
+        ! w_v_new(:, ny) = 0.0
 
     end subroutine diffusion
     
@@ -346,17 +368,21 @@ contains
                     w_eq(i, j) = W
                 end if
 
-                w_v_new(i, j) = w_v(i, j) + dt * (alpha * (w_v(i, j) - w_eq(i, j)))
-                w_l_new(i, j) = w_l(i, j) - dt * (alpha * (w_v(i, j) - w_eq(i, j)))
-                E_new(i, j)   = E(i, j) - dt * (Q * (2 * alpha * (w_v(i, j) - w_eq(i, j))))
+                w_v_new(i, j) = max(0.0, w_v(i, j) + dt * (alpha * (w_v(i, j) - w_eq(i, j))))
+                w_l_new(i, j) = max(0.0, w_l(i, j) - dt * (alpha * (w_v(i, j) - w_eq(i, j))))
+                E_new(i, j)   = max(0.0, E(i, j) - dt * (Q * (2 * alpha * (w_v(i, j) - w_eq(i, j)))))
             end do
         end do
 
         ! boundary condition
-        w_v_new(:, 1) = 0.0
-        w_v_new(:, ny) = 0.0
-        w_l_new(:, 1) = 0.0
-        w_l_new(:, ny) = 0.0
+        w_v_new(:, 1) = w_v_new(:, 2)
+        w_v_new(:, ny) = w_v_new(:, ny-1)
+        w_l_new(:, 1) = w_l_new(:, 2)
+        w_l_new(:, ny) = w_l_new(:, ny-1)
+        ! w_v_new(:, 1) = 0.0
+        ! w_v_new(:, ny) = 0.0
+        ! w_l_new(:, 1) = 0.0
+        ! w_l_new(:, ny) = 0.0
         E_new(:, 1) = E0
         E_new(:, ny) = E_new(:, ny-1)
 

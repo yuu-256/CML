@@ -42,9 +42,9 @@ for i, line in enumerate(lines):
         wv = np.array([list(map(float, line.split())) for line in lines[start_index:start_index+ny]])
 
 # Get data and transform to 2D array
-plt.imshow(ie, origin='lower', extent=[0, nx, 0, ny], cmap='Greys_r')
+plt.imshow(lw, origin='lower', extent=[0, nx, 0, ny], cmap='Greys_r')
 plt.title('Liquid water mass')
 plt.colorbar()
-plt.clim(0, 0.001)
+plt.clim(0, 0.0001)
 plt.savefig('image/ie.png')
 plt.show()
